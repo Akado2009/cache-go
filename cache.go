@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -25,9 +25,7 @@ type Cache struct {
 }
 
 type Item struct {
-	Value      interface{}
-	Expiration int64
-	Create     time.Time
+	Value interface{}
 }
 
 func New(maxEntries int) *Cache {
@@ -36,7 +34,6 @@ func New(maxEntries int) *Cache {
 		items:      items,
 		maxEntries: maxEntries,
 		usingDisk:  false,
-		numEntries: 0,
 	}
 	return &cache
 }
@@ -62,13 +59,15 @@ func (c *Cache) Get(key string, value interface{}) (interface{}, bool) {
 	defer c.RUnlock()
 
 	var item Item
+	var ok bool
+	var err error
 	if !c.usingDisk {
-		item, ok := c.items[key]
+		item, ok = c.items[key]
 		if !ok {
 			return nil, false
 		}
 	} else {
-		item, err := c.LoadFromFile(key)
+		item, err = c.LoadFromFile(key)
 		if err != nil {
 			return nil, false
 		}
@@ -94,11 +93,30 @@ func (c *Cache) Delete(key string) error {
 }
 
 func (c *Cache) SaveFromMemory() error {
+	var err error
+	for k, v := range c.items {
+		err = c.SaveToFile(k, v)
+		if err != nil {
+			return err
+		}
+	}
 
+	c.items = make(map[string]Item)
+	return nil
 }
 
 func (c *Cache) LoadFromDisk() error {
-
+	files, _ := ioutil.ReadDir(CachePath)
+	for _, file := range files {
+		base := file.Name()
+		key := strings.TrimSuffix(base, filepath.Ext(base))
+		item, err := c.LoadFromFile(key)
+		if err != nil {
+			return nil
+		}
+		c.items[key] = item
+	}
+	return nil
 }
 
 func (c *Cache) SaveToFile(key string, value interface{}) error {
