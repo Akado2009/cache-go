@@ -35,6 +35,10 @@ func New(maxEntries int) *Cache {
 		maxEntries: maxEntries,
 		usingDisk:  false,
 	}
+
+	if _, err := os.Stat(CachePath); os.IsNotExist(err) {
+		os.Mkdir(CachePath, 0777)
+	}
 	return &cache
 }
 
